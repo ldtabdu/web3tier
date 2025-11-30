@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Hệ thống Tuyển Sinh BDU</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 1.2rem;
+        }
+
+        header {
+            margin-bottom: 1rem
+        }
+
+        nav a {
+            margin-right: 1rem;
+            cursor: pointer;
+            color: #0366d6
+        }
+
+        section {
+            margin-top: 1rem
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            padding: 1rem;
+            border-radius: 6px;
+            max-width: 700px
+        }
+
+        label {
+            display: block;
+            margin-top: .5rem
+        }
+
+        input,
+        select,
+        button,
+        textarea {
+            padding: .4rem;
+            width: 100%;
+            box-sizing: border-box
+        }
+
+        .small {
+            max-width: 300px
+        }
+
+        .info {
+            color: #555;
+            margin-top: .5rem
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Hệ thống Tuyển Sinh BDU</h1>
+        <nav>
+            <a id="nav-home">Trang chủ</a>
+            <a id="nav-programs">Chương trình</a>
+            <a id="nav-apply">Nộp hồ sơ</a>
+        </nav>
+    </header>
+
+    <main>
+        <section id="home" class="card">
+            <h2>Chào mừng</h2>
+            <p class="info">Hệ thống cho phép xem chương trình đào tạo, nộp hồ sơ tuyển sinh và theo dõi trạng thái.</p>
+        </section>
+
+        <section id="programs" class="card" style="display:none">
+            <h2>Danh sách chương trình</h2>
+            <ul id="program-list">Đang tải...</ul>
+        </section>
+
+        <section id="apply" class="card" style="display:none">
+            <h2>Form nộp hồ sơ</h2>
+            <form id="apply-form">
+                <label>Họ và tên <input name="full_name" required /></label>
+                <label>Email <input name="email" type="email" required /></label>
+                <label>Số điện thoại <input name="phone" /></label>
+                <label>Chọn chương trình <select name="program_id" id="program-select" required></select></label>
+                <label>Ghi chú <textarea name="notes"></textarea></label>
+                <div style="margin-top:.6rem">
+                    <button type="submit">Nộp hồ sơ</button>
+                </div>
+            </form>
+            <div id="apply-result" class="info"></div>
+        </section>
+    </main>
+
+    <script>
+        const apiBase = '/api';
+
+        // Navigation
+        document.getElementById('nav-home').addEventListener('click', () => show('home'));
+        document.getElementById('nav-programs').addEventListener('click', () => { show('programs'); loadPrograms(); });
+        document.getElementById('nav-apply').addEventListener('click', () => { show('apply'); loadProgramsIntoSelect(); });
+
+        function show(id) {
+            ['home', 'programs', 'apply'].forEach(s => document.getElementById(s).style.display = (s === id ? 'block' : 'none'));
+        }
+
+        // Load programs list
+        async function loadPrograms() {
+            const list = document.getElementById('program-list');
+            list.innerHTML = 'Đang tải...';
+            try {
+                const res = await fetch(`${apiBase}/programs`);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const programs = await res.json();
+                if (!programs || programs.length === 0) {
+                    list.innerHTML = '<li>Không có chương trình nào.</li>';
+                    return;
+                }
+                list.innerHTML = '';
+                programs.forEach(p => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>${p.name}</strong> (${p.code}) - ${p.degree || ''} <div class="info">Sức chứa: ${p.capacity || 0}</div>`;
+                    list.appendChild(li);
+                });
+            } catch (err) {
+                list.innerHTML = '<li>Lỗi tải chương trình: ' + err.message + '</li>';
+            }
+        }
+
+        // Load programs into select for application form
+        async function loadProgramsIntoSelect() {
+            const sel = document.getElementById('program-select');
+            sel.innerHTML = '<option>Đang tải...</option>';
+            try {
+                const res = await fetch(`${apiBase}/programs`);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const programs = await res.json();
+                sel.innerHTML = '';
+                programs.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = `${p.name} (${p.code})`;
+                    sel.appendChild(opt);
+                });
+            } catch (err) {
+                sel.innerHTML = '<option value="">Lỗi tải</option>';
+            }
+        }
+
+        // Handle application submit
+        document.getElementById('apply-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                full_name: form.full_name.value.trim(),
+                email: form.email.value.trim(),
+                phone: form.phone.value.trim(),
+                program_id: Number(form.program_id.value),
+                notes: form.notes.value.trim()
+            };
+            const resultDiv = document.getElementById('apply-result');
+            resultDiv.textContent = 'Đang nộp...';
+            try {
+                const res = await fetch(`${apiBase}/apply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const body = await res.json();
+                if (!res.ok) throw new Error(body.error || 'Lỗi server');
+                resultDiv.textContent = `Gửi thành công. Mã hồ sơ: ${body.applicationId}`;
+                form.reset();
+            } catch (err) {
+                resultDiv.textContent = 'Lỗi khi nộp: ' + err.message;
+            }
+        });
+
+        // Khởi tạo: hiển thị home
+        show('home');
+    </script>
+</body>
+
+</html>
